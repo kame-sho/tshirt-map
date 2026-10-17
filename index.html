@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>47枚 — 都道府県Tシャツ帳</title>
+<meta name="robots" content="noindex">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="47枚">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f2ede1">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{
+    --ink:#0f2a38;        /* 藍 濃 */
+    --ink-2:#1d4a63;
+    --paper:#f2ede1;      /* 生成り */
+    --paper-2:#e6dfcf;
+    --line:#c9bfa8;
+    --dim:#7d7461;
+    --accent:#b5432f;     /* 朱（判子） */
+    --empty:#ddd5c2;
+    --radius:3px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",system-ui,sans-serif;
+    font-size:15px;line-height:1.6;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  header{padding-top:calc(14px + env(safe-area-inset-top)) !important}
+  button{font:inherit;color:inherit;cursor:pointer}
+
+  header{
+    position:sticky;top:0;z-index:20;
+    background:var(--paper);
+    border-bottom:1px solid var(--line);
+    padding:14px 16px 0;
+  }
+  .count{display:flex;align-items:baseline;gap:8px}
+  .count b{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .count span{font-size:13px;color:var(--dim)}
+  .gauge{height:4px;background:var(--empty);margin:10px 0 12px;border-radius:2px;overflow:hidden}
+  .gauge i{display:block;height:100%;background:var(--ink);transition:width .4s ease}
+  nav{display:flex;gap:16px}
+  nav button{
+    background:none;border:0;padding:8px 0 10px;font-size:15px;font-weight:600;
+    color:var(--dim);border-bottom:2px solid transparent;margin-bottom:-1px;
+  }
+  nav button[aria-selected="true"]{color:var(--ink);border-color:var(--ink)}
+  nav button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  main{padding:18px 12px 90px;max-width:640px;margin:0 auto}
+  .hide{display:none !important}
+
+  /* ---- 地図 ---- */
+  #mapWrap{overflow-x:auto;padding-bottom:8px}
+  #map{display:grid;gap:3px;width:100%;min-width:330px}
+  .cell{
+    position:relative;aspect-ratio:1/1;border:0;padding:0;border-radius:var(--radius);
+    background:var(--empty);color:#8a8271;
+    font-size:10px;font-weight:600;letter-spacing:-.03em;
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    transition:transform .12s ease;
+  }
+  .cell:active{transform:scale(.9)}
+  .cell.has{color:#fff}
+  .cell .n{position:absolute;top:2px;right:3px;font-size:9px;opacity:.7}
+  .legend{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);margin-top:14px}
+  .legend i{width:16px;height:16px;border-radius:var(--radius);display:inline-block}
+
+  /* ---- 一覧 ---- */
+  .tools{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .tools select,.tools input{
+    font:inherit;padding:7px 10px;border:1px solid var(--line);
+    background:#fff;border-radius:var(--radius);color:var(--ink)
+  }
+  .tools input{flex:1;min-width:120px}
+  .list{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .card{
+    background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;text-align:left;padding:0;display:block;width:100%
+  }
+  .card .ph{aspect-ratio:1/1;background:var(--paper-2);display:block;width:100%;object-fit:cover}
+  .card .ph.none{display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px}
+  .card .meta{padding:8px 10px 10px}
+  .card .pn{font-weight:700}
+  .card .sm{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .empty{border:1px dashed var(--line);padding:28px 18px;text-align:center;color:var(--dim);border-radius:var(--radius)}
+  .tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+  .tag{font-size:10px;padding:2px 6px;border:1px solid var(--line);border-radius:999px;color:var(--dim)}
+  .totalLine{font-size:13px;color:var(--dim);margin:-6px 0 12px}
+
+  /* ---- 記録タブ ---- */
+  .moreBlock{margin-bottom:28px}
+  .moreBlock h3{margin:0 0 10px;font-size:15px}
+  .badges{display:flex;flex-wrap:wrap;gap:8px}
+  .badge{padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:var(--dim)}
+  .badge.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .yearRow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .miniMapWrap{position:relative;width:100%;aspect-ratio:3/4;background:var(--paper-2);border-radius:var(--radius);overflow:hidden}
+  .miniMap{position:relative;width:100%;height:100%}
+  .pin{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--accent);border:2px solid #fff;transform:translate(-50%,-50%);padding:0}
+  #locPickWrap{cursor:crosshair;margin-top:8px}
+  .refLabel{position:absolute;transform:translate(-50%,-50%);font-size:10px;color:var(--dim);pointer-events:none}
+  .trashItem{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .trashItem .act{display:flex;gap:6px;flex-shrink:0}
+  .tiny{font-size:12px;padding:5px 8px;border:1px solid var(--line);background:#fff;border-radius:var(--radius)}
+
+  /* ---- 詳細シート ---- */
+  #sheet{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;background:rgba(15,42,56,.45)}
+  #sheet .inner{
+    background:var(--paper);width:100%;max-height:92vh;overflow-y:auto;
+    border-radius:12px 12px 0 0;padding:18px 16px calc(28px + env(safe-area-inset-bottom));
+    max-width:640px;margin:0 auto;
+  }
+  .sheetHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .sheetHead h2{margin:0;font-size:22px}
+  .sheetHead button{background:none;border:0;font-size:22px;padding:4px 8px;color:var(--dim)}
+  .shot{width:100%;border-radius:var(--radius);margin:10px 0;display:block;background:var(--paper-2)}
+  label{display:block;font-size:12px;color:var(--dim);margin:12px 0 4px}
+  .fld{width:100%;font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--ink)}
+  textarea.fld{min-height:64px;resize:vertical}
+  .btn{
+    width:100%;padding:13px;border:1px solid var(--ink);background:var(--ink);color:#fff;
+    border-radius:var(--radius);font-weight:700;margin-top:16px
+  }
+  .btn.ghost{background:transparent;color:var(--ink)}
+  .btn.danger{background:transparent;border-color:var(--accent);color:var(--accent);margin-top:8px}
+  .rec{border-top:1px solid var(--line);padding-top:14px;margin-top:18px}
+  .recHead{display:flex;justify-content:space-between;align-items:baseline}
+  .recHead h3{margin:0;font-size:15px}
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 16px;border-radius:var(--radius);
+    font-size:13px;z-index:99;max-width:88%
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="count"><b id="cnt">0</b><span>/ 47 都道府県</span></div>
+  <div class="gauge"><i id="gauge" style="width:0"></i></div>
+  <nav>
+    <button id="tabMap" aria-selected="true">日本地図</button>
+    <button id="tabList" aria-selected="false">Tシャツ一覧</button>
+    <button id="tabMore" aria-selected="false">記録</button>
+  </nav>
+</header>
+
+<main>
+  <section id="viewMap">
+    <div id="mapWrap"><div id="map"></div></div>
+    <div class="legend">
+      <i style="background:var(--empty)"></i>まだ<i style="background:var(--ink-2)"></i>1枚<i style="background:var(--ink)"></i>2枚以上
+      <span style="margin-left:auto">タップで登録</span>
+    </div>
+  </section>
+
+  <section id="viewList" class="hide">
+    <div class="tools">
+      <input id="q" placeholder="県名・店名で検索">
+      <select id="sort">
+        <option value="pref">都道府県順</option>
+        <option value="date">購入日が新しい順</option>
+        <option value="added">登録が新しい順</option>
+      </select>
+    </div>
+    <div class="tools">
+      <button class="btn ghost" id="exportBtn" style="width:auto;margin-top:0;padding:9px 14px">書き出す</button>
+      <button class="btn ghost" id="importBtn" style="width:auto;margin-top:0;padding:9px 14px">読み込む</button>
+    </div>
+    <div class="totalLine" id="totalPrice"></div>
+    <div class="list" id="list"></div>
+    <div class="empty hide" id="listEmpty">まだ1枚もありません。地図から都道府県をタップして登録します。</div>
+  </section>
+
+  <section id="viewMore" class="hide">
+    <div class="moreBlock">
+      <h3>実績</h3>
+      <div class="badges" id="badges"></div>
+    </div>
+    <div class="moreBlock">
+      <h3>年ごとの記録</h3>
+      <div id="yearReview"></div>
+    </div>
+    <!-- 購入場所マップ機能: 一時的にコメントアウト
+    <div class="moreBlock">
+      <h3>購入場所マップ（簡易）</h3>
+      <div id="pinMapWrap" class="miniMapWrap"><div id="pinMap" class="miniMap"></div></div>
+      <div class="empty hide" id="pinMapEmpty" style="margin-top:8px">位置情報付きの記録がまだありません。シートの「現在地を記録」から登録できます。</div>
+    </div>
+    -->
+    <div class="moreBlock">
+      <div class="recHead"><h3>ゴミ箱</h3><span class="sm" id="trashCount"></span></div>
+      <div id="trash"></div>
+      <div class="empty hide" id="trashEmpty" style="margin-top:8px">ゴミ箱は空です。</div>
+    </div>
+  </section>
+</main>
+
+<div id="sheet" class="hide"></div>
+<input type="file" id="picker" accept="image/*" style="display:none">
+<input type="file" id="importPicker" accept="application/json" style="display:none">
+
+<script>
+const PREFS=[
+ ["北海道",11,0],["青森",11,1],["秋田",10,2],["岩手",11,2],["山形",10,3],["宮城",11,3],
+ ["新潟",10,4],["福島",11,4],["石川",8,5],["富山",9,5],["群馬",10,5],["栃木",11,5],["茨城",12,5],
+ ["福井",8,6],["岐阜",9,6],["長野",10,6],["埼玉",11,6],["千葉",12,6],
+ ["島根",4,7],["鳥取",5,7],["兵庫",6,7],["京都",7,7],["滋賀",8,7],["愛知",9,7],["山梨",10,7],["東京",11,7],
+ ["山口",3,8],["広島",4,8],["岡山",5,8],["大阪",6,8],["奈良",7,8],["三重",8,8],["静岡",9,8],["神奈川",10,8],
+ ["佐賀",0,9],["福岡",1,9],["大分",2,9],["愛媛",4,9],["香川",5,9],["和歌山",6,9],
+ ["長崎",0,10],["熊本",1,10],["高知",4,10],["徳島",5,10],
+ ["鹿児島",1,11],["宮崎",2,11],["沖縄",0,12]
+];
+const REGIONS={
+  "北海道":["北海道"],
+  "東北":["青森","岩手","宮城","秋田","山形","福島"],
+  "関東":["茨城","栃木","群馬","埼玉","千葉","東京","神奈川"],
+  "中部":["新潟","富山","石川","福井","山梨","長野","岐阜","静岡","愛知"],
+  "近畿":["三重","滋賀","京都","大阪","兵庫","奈良","和歌山"],
+  "中国":["鳥取","島根","岡山","広島","山口"],
+  "四国":["徳島","香川","愛媛","高知"],
+  "九州・沖縄":["福岡","佐賀","長崎","熊本","大分","宮崎","鹿児島","沖縄"]
+};
+const IDX_KEY="tshirts:index";
+const ACH_KEY="tshirts:achievements";
+// {id,pref,shop,date,memo,hasPhoto,added,price,tags,lat,lng,deleted,deletedAt}
+let items=[];
+let achievements={};     // badgeKey -> 達成時刻(ms)。一度達成したら消えない
+const photoCache={};     // id -> dataURL
+let openPref=null, pendingPhoto=null, pendingLoc=null, editingId=null, memOnly=false;
+function activeItems(){ return items.filter(i=>!i.deleted); }
+
+/* ---------- 保存まわり ----------
+   Artifact環境では window.storage、それ以外は IndexedDB（容量が大きい）を使う。
+   IndexedDB が使えないときだけ localStorage（約5MBまで）にフォールバックする。 */
+function hasLocalStorage(){
+  try{ const t="__ls_test__"; localStorage.setItem(t,"1"); localStorage.removeItem(t); return true; }
+  catch(e){ return false; }
+}
+let idb=null;
+function openIDB(){
+  return new Promise(res=>{
+    try{
+      const rq=indexedDB.open("tshirt-map",1);
+      rq.onupgradeneeded=()=>rq.result.createObjectStore("kv");
+      rq.onsuccess=()=>res(rq.result);
+      rq.onerror=()=>res(null);
+    }catch(e){ res(null); }
+  });
+}
+function idbDo(mode,fn){
+  return new Promise(res=>{
+    try{
+      const tx=idb.transaction("kv",mode), st=tx.objectStore("kv");
+      const rq=fn(st);
+      tx.oncomplete=()=>res(mode==="readonly"?(rq.result===undefined?null:rq.result):true);
+      tx.onerror=tx.onabort=()=>res(mode==="readonly"?null:false);
+    }catch(e){ res(mode==="readonly"?null:false); }
+  });
+}
+async function initStorage(){
+  if(window.storage) return;
+  idb=await openIDB();
+  if(!idb) return;
+  try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+  // 以前 localStorage に保存していたデータがあれば IndexedDB に移す
+  if(hasLocalStorage()){
+    const keys=[];
+    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith("tshirts:")||k.startsWith("photo:")) keys.push(k); }
+    for(const k of keys){
+      if(await idbDo("readonly",s=>s.get(k))===null) await idbDo("readwrite",s=>s.put(localStorage.getItem(k),k));
+    }
+  }
+}
+async function sGet(k){
+  if(window.storage){ try{const r=await window.storage.get(k,false); return r?r.value:null;}catch(e){return null;} }
+  if(idb) return idbDo("readonly",s=>s.get(k));
+  try{ return localStorage.getItem(k); }catch(e){ return null; }
+}
+async function sSet(k,v){
+  if(window.storage){ try{const r=await window.storage.set(k,v,false); return !!r;}catch(e){return false;} }
+  if(idb) return idbDo("readwrite",s=>s.put(v,k));
+  try{ localStorage.setItem(k,v); return true; }catch(e){ return false; }
+}
+async function sDel(k){
+  if(window.storage){ try{await window.storage.delete(k,false);}catch(e){} return; }
+  if(idb){ await idbDo("readwrite",s=>s.delete(k)); return; }
+  try{ localStorage.removeItem(k); }catch(e){}
+}
+
+async function saveIndex(){
+  if(memOnly) return true;
+  const ok=await sSet(IDX_KEY,JSON.stringify({items}));
+  if(!ok) toast("保存できませんでした。もう一度お試しください。");
+  return ok;
+}
+async function loadAll(){
+  await initStorage();
+  if(!window.storage&&!idb&&!hasLocalStorage()){ memOnly=true; toast("この環境では保存できません。表示の確認のみできます。"); return; }
+  const raw=await sGet(IDX_KEY);
+  if(raw){ try{ items=(JSON.parse(raw).items)||[]; }catch(e){ items=[]; } }
+  const achRaw=await sGet(ACH_KEY);
+  if(achRaw){ try{ achievements=JSON.parse(achRaw)||{}; }catch(e){ achievements={}; } }
+  await purgeOldTrash();
+}
+async function saveAchievements(){
+  if(memOnly) return;
+  await sSet(ACH_KEY,JSON.stringify(achievements));
+}
+async function purgeOldTrash(){
+  const cutoff=Date.now()-30*24*60*60*1000;
+  const stale=items.filter(i=>i.deleted&&i.deletedAt&&i.deletedAt<cutoff);
+  if(!stale.length) return;
+  for(const it of stale){ await sDel("photo:"+it.id); delete photoCache[it.id]; }
+  items=items.filter(i=>!(i.deleted&&i.deletedAt&&i.deletedAt<cutoff));
+  await saveIndex();
+}
+async function getPhoto(id){
+  if(photoCache[id]!==undefined) return photoCache[id];
+  const v=await sGet("photo:"+id);
+  photoCache[id]=v; return v;
+}
+
+/* ---------- 画像圧縮 ---------- */
+function shrink(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        const max=900, s=Math.min(1,max/Math.max(img.width,img.height));
+        const c=document.createElement("canvas");
+        c.width=Math.round(img.width*s); c.height=Math.round(img.height*s);
+        c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+        res(c.toDataURL("image/jpeg",.72));
+      };
+      img.onerror=()=>rej(new Error("image"));
+      img.src=fr.result;
+    };
+    fr.onerror=()=>rej(new Error("read"));
+    fr.readAsDataURL(file);
+  });
+}
+
+/* ---------- 地図 ---------- */
+function countOf(p){ return activeItems().filter(i=>i.pref===p).length; }
+function drawMap(){
+  const cols=Math.max(...PREFS.map(p=>p[1]))+1;
+  const rows=Math.max(...PREFS.map(p=>p[2]))+1;
+  const m=document.getElementById("map");
+  m.style.gridTemplateColumns=`repeat(${cols},1fr)`;
+  m.style.gridTemplateRows=`repeat(${rows},auto)`;
+  m.innerHTML="";
+  PREFS.forEach(([name,c,r])=>{
+    const n=countOf(name);
+    const b=document.createElement("button");
+    b.className="cell"+(n?" has":"");
+    b.style.gridColumn=c+1; b.style.gridRow=r+1;
+    if(n) b.style.background= n>1 ? "var(--ink)" : "var(--ink-2)";
+    b.innerHTML=(n>1?`<span class="n">${n}</span>`:"")+name.replace(/[県府都]$/,"");
+    b.setAttribute("aria-label",`${name} ${n}枚`);
+    b.onclick=()=>openSheet(name);
+    m.appendChild(b);
+  });
+  const got=PREFS.filter(p=>countOf(p[0])>0).length;
+  document.getElementById("cnt").textContent=got;
+  document.getElementById("gauge").style.width=(got/47*100)+"%";
+}
+
+/* ---------- 一覧 ---------- */
+function drawList(){
+  const q=document.getElementById("q").value.trim();
+  const sort=document.getElementById("sort").value;
+  const active=activeItems();
+  let rows=active.filter(i=>!q||i.pref.includes(q)||(i.shop||"").includes(q));
+  const order=PREFS.map(p=>p[0]);
+  rows.sort((a,b)=>{
+    if(sort==="pref") return order.indexOf(a.pref)-order.indexOf(b.pref);
+    if(sort==="date") return (b.date||"").localeCompare(a.date||"");
+    return b.added-a.added;
+  });
+  const total=active.reduce((s,i)=>s+(i.price||0),0);
+  document.getElementById("totalPrice").textContent = total>0 ? `合計金額 ¥${total.toLocaleString()}` : "";
+  const el=document.getElementById("list");
+  el.innerHTML="";
+  document.getElementById("listEmpty").classList.toggle("hide",rows.length>0);
+  rows.forEach(it=>{
+    const card=document.createElement("button");
+    card.className="card";
+    card.innerHTML=`<div class="ph none">写真なし</div>
+      <div class="meta"><div class="pn">${esc(it.pref)}</div>
+      <div class="sm">${esc(it.shop||"購入場所は未記入")}</div>
+      <div class="sm">${esc(it.date||"")}${it.price!=null?" ・ ¥"+it.price.toLocaleString():""}</div>
+      ${it.tags?`<div class="tags">${renderTags(it.tags)}</div>`:""}</div>`;
+    card.onclick=()=>openSheet(it.pref,it.id);
+    el.appendChild(card);
+    if(it.hasPhoto) getPhoto(it.id).then(src=>{
+      if(!src) return;
+      const img=new Image(); img.className="ph"; img.src=src; img.alt=it.pref+"のTシャツ";
+      card.replaceChild(img,card.firstElementChild);
+    });
+  });
+}
+function esc(s){return (s||"").replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));}
+function renderTags(tagsStr){
+  return (tagsStr||"").split(",").map(t=>t.trim()).filter(Boolean)
+    .map(t=>`<span class="tag">${esc(t)}</span>`).join("");
+}
+
+/* ---------- 詳細シート ---------- */
+function openSheet(pref,id){
+  openPref=pref; editingId=id||null; pendingPhoto=null;
+  const it=id?items.find(x=>x.id===id):null;
+  /* 購入場所（位置指定）機能: 一時的にコメントアウト
+  pendingLoc=(it&&it.lat!=null)?{lat:it.lat,lng:it.lng}:null;
+  */
+  const others=activeItems().filter(x=>x.pref===pref&&(!id||x.id!==id));
+  const sheet=document.getElementById("sheet");
+  sheet.classList.remove("hide");
+  sheet.innerHTML=`<div class="inner">
+    <div class="sheetHead"><h2>${esc(pref)}</h2><button id="close" aria-label="閉じる">×</button></div>
+    <img class="shot" id="shot" alt="" style="display:none">
+    <button class="btn ghost" id="shoot">${it&&it.hasPhoto?"写真を撮り直す":"写真を撮る / 選ぶ"}</button>
+    <label for="f_shop">どこで買った？（店名・施設名）</label>
+    <input class="fld" id="f_shop" placeholder="例：道の駅◯◯" value="${esc(it?it.shop:"")}">
+    <label for="f_date">購入日</label>
+    <input class="fld" id="f_date" type="date" value="${esc(it?it.date:"")}">
+    <label for="f_price">価格（円）</label>
+    <input class="fld" id="f_price" type="number" inputmode="numeric" min="0" placeholder="例：2500" value="${it&&it.price!=null?it.price:""}">
+    <label for="f_tags">タグ（カンマ区切り）</label>
+    <input class="fld" id="f_tags" placeholder="例：L, 赤" value="${esc(it?it.tags||"":"")}">
+    <label for="f_memo">メモ</label>
+    <textarea class="fld" id="f_memo" placeholder="色・サイズ・旅の思い出など">${esc(it?it.memo:"")}</textarea>
+    <!-- 購入場所（位置指定）機能: 一時的にコメントアウト
+    <button class="btn ghost" id="locBtn" type="button">${it&&it.lat!=null?"位置を指定し直す":"地図で購入場所を指定"}</button>
+    <div class="sm" id="locInfo">${it&&it.lat!=null?`指定済み（${it.lat.toFixed(3)}, ${it.lng.toFixed(3)}）`:""}</div>
+    <div id="locPicker" class="hide">
+      <div id="locPickWrap" class="miniMapWrap"><div id="locPick" class="miniMap"></div></div>
+      <div class="sm" style="margin-top:6px">地図をタップして、おおよその購入場所を指定します。</div>
+    </div>
+    -->
+    <button class="btn" id="save">${it?"変更を保存":"このTシャツを登録"}</button>
+    ${it?'<button class="btn danger" id="del">この1枚をゴミ箱へ</button>':""}
+    ${others.length?`<div class="rec"><div class="recHead"><h3>${esc(pref)}の他の${others.length}枚</h3></div>
+      <div class="list" id="others" style="margin-top:10px"></div></div>`:""}
+  </div>`;
+  document.getElementById("close").onclick=closeSheet;
+  sheet.onclick=e=>{ if(e.target===sheet) closeSheet(); };
+  document.getElementById("shoot").onclick=()=>document.getElementById("picker").click();
+  document.getElementById("save").onclick=save;
+  /* 購入場所（位置指定）機能: 一時的にコメントアウト
+  document.getElementById("locBtn").onclick=()=>{
+    const picker=document.getElementById("locPicker");
+    picker.classList.toggle("hide");
+    if(!picker.classList.contains("hide")) renderLocPicker();
+  };
+  document.getElementById("locPick").onclick=e=>{
+    const rect=e.currentTarget.getBoundingClientRect();
+    const xPct=(e.clientX-rect.left)/rect.width*100;
+    const yPct=(e.clientY-rect.top)/rect.height*100;
+    const latMin=24,latMax=46,lngMin=122,lngMax=146;
+    const lng=lngMin+(xPct/100)*(lngMax-lngMin);
+    const lat=latMin+(1-yPct/100)*(latMax-latMin);
+    pendingLoc={lat,lng};
+    placeMarker(lat,lng);
+    document.getElementById("locInfo").textContent=`指定しました（${lat.toFixed(3)}, ${lng.toFixed(3)}）`;
+  };
+  */
+  if(it) document.getElementById("del").onclick=()=>remove(it.id);
+  if(it&&it.hasPhoto) getPhoto(it.id).then(src=>{ if(src) showShot(src); });
+  if(others.length){
+    const box=document.getElementById("others");
+    others.forEach(o=>{
+      const c=document.createElement("button");
+      c.className="card";
+      c.innerHTML=`<div class="ph none">写真なし</div><div class="meta"><div class="sm">${esc(o.shop||"店名なし")}</div><div class="sm">${esc(o.date||"")}</div>${o.tags?`<div class="tags">${renderTags(o.tags)}</div>`:""}</div>`;
+      c.onclick=()=>openSheet(pref,o.id);
+      box.appendChild(c);
+      if(o.hasPhoto) getPhoto(o.id).then(src=>{
+        if(!src)return; const img=new Image(); img.className="ph"; img.src=src; img.alt="";
+        c.replaceChild(img,c.firstElementChild);
+      });
+    });
+  }
+}
+function showShot(src){ const s=document.getElementById("shot"); s.src=src; s.style.display="block"; }
+function closeSheet(){ document.getElementById("sheet").classList.add("hide"); openPref=null; editingId=null; pendingPhoto=null; }
+
+document.getElementById("picker").onchange=async e=>{
+  const f=e.target.files[0]; e.target.value="";
+  if(!f) return;
+  try{ pendingPhoto=await shrink(f); showShot(pendingPhoto); }
+  catch(err){ toast("この画像は読み込めませんでした。別の写真を選んでください。"); }
+};
+
+async function save(){
+  const shop=document.getElementById("f_shop").value.trim();
+  const date=document.getElementById("f_date").value;
+  const memo=document.getElementById("f_memo").value.trim();
+  const priceRaw=document.getElementById("f_price").value;
+  const price=priceRaw===""?null:Number(priceRaw);
+  const tags=document.getElementById("f_tags").value.trim();
+  let it=editingId?items.find(x=>x.id===editingId):null;
+  if(!it){ it={id:String(Date.now())+Math.random().toString(36).slice(2,6),pref:openPref,added:Date.now(),hasPhoto:false}; items.push(it); }
+  Object.assign(it,{shop,date,memo,price:(price==null||isNaN(price))?null:price,tags});
+  /* 購入場所（位置指定）機能: 一時的にコメントアウト
+  if(pendingLoc){ it.lat=pendingLoc.lat; it.lng=pendingLoc.lng; }
+  */
+  if(pendingPhoto){
+    if(memOnly||await sSet("photo:"+it.id,pendingPhoto)){ photoCache[it.id]=pendingPhoto; it.hasPhoto=true; }
+    else toast("写真を保存できませんでした。文字の情報だけ保存します。");
+  }
+  await saveIndex();
+  closeSheet(); drawMap(); drawList(); toast(editingId?"変更を保存しました":`${it.pref}を登録しました`);
+}
+async function remove(id){
+  if(!confirm("この1枚をゴミ箱に移動します。ゴミ箱から復元できます（30日で自動削除）。")) return;
+  const it=items.find(x=>x.id===id);
+  if(it){ it.deleted=true; it.deletedAt=Date.now(); }
+  await saveIndex();
+  closeSheet(); drawMap(); drawList(); toast("ゴミ箱に移動しました");
+}
+async function restoreItem(id){
+  const it=items.find(x=>x.id===id);
+  if(it){ it.deleted=false; it.deletedAt=null; }
+  await saveIndex();
+  drawMap(); drawList(); drawMore(); toast("復元しました");
+}
+async function purgeItem(id){
+  if(!confirm("完全に削除します。元に戻せません。")) return;
+  items=items.filter(x=>x.id!==id);
+  await sDel("photo:"+id); delete photoCache[id];
+  await saveIndex();
+  drawMore(); toast("完全に削除しました");
+}
+
+/* ---------- 書き出し・読み込み ---------- */
+async function exportData(){
+  const list=activeItems();
+  const photos={};
+  for(const it of list){
+    if(!it.hasPhoto) continue;
+    const src=await getPhoto(it.id);
+    if(src) photos[it.id]=src;
+  }
+  const payload={type:"tshirt-map-backup",version:1,exported:Date.now(),items:list,photos};
+  const blob=new Blob([JSON.stringify(payload)],{type:"application/json"});
+  const d=new Date(), pad=n=>String(n).padStart(2,"0");
+  const fname=`tshirt-map-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.json`;
+  // iPhone では共有シート（「ファイルに保存」など）を使う
+  try{
+    const file=new File([blob],fname,{type:"application/json"});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file]});
+      toast("書き出しました"); return;
+    }
+  }catch(e){ if(e&&e.name==="AbortError") return; }
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=fname;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast("書き出しました");
+}
+async function importData(file){
+  let data;
+  try{ data=JSON.parse(await file.text()); }
+  catch(e){ toast("このファイルは読み込めませんでした。"); return; }
+  if(!data||!Array.isArray(data.items)){ toast("このファイルは読み込めませんでした。"); return; }
+  if(!confirm(`${data.items.length}件のTシャツを読み込みます。今のデータに追加されます。よろしいですか？`)) return;
+  const photos=data.photos||{};
+  for(const it of data.items){
+    const oldId=it.id;
+    const newId=String(Date.now())+Math.random().toString(36).slice(2,6);
+    const copy=Object.assign({},it,{id:newId});
+    items.push(copy);
+    if(copy.hasPhoto&&photos[oldId]){
+      if(memOnly||await sSet("photo:"+newId,photos[oldId])) photoCache[newId]=photos[oldId];
+      else copy.hasPhoto=false;
+    }
+  }
+  await saveIndex();
+  drawMap(); drawList();
+  toast("読み込みました");
+}
+document.getElementById("exportBtn").onclick=exportData;
+document.getElementById("importBtn").onclick=()=>document.getElementById("importPicker").click();
+document.getElementById("importPicker").onchange=async e=>{
+  const f=e.target.files[0]; e.target.value="";
+  if(f) await importData(f);
+};
+
+/* ---------- 実績・年別振り返り・位置マップ・ゴミ箱 ---------- */
+function drawBadges(){
+  const got=PREFS.filter(p=>countOf(p[0])>0).map(p=>p[0]);
+  const defs=[5,10,20,30,47].map(n=>({key:`ms_${n}`,label:`${n}都道府県達成`,qualifies:got.length>=n}));
+  Object.entries(REGIONS).forEach(([name,list])=>{
+    defs.push({key:`region_${name}`,label:`${name}制覇`,qualifies:list.every(p=>got.includes(p))});
+  });
+  let changed=false;
+  defs.forEach(b=>{
+    if(b.qualifies&&!achievements[b.key]){ achievements[b.key]=Date.now(); changed=true; }
+  });
+  if(changed) saveAchievements();
+  document.getElementById("badges").innerHTML=defs.map(b=>{
+    const achAt=achievements[b.key];
+    const dateStr=achAt?new Date(achAt).toLocaleDateString("ja-JP"):"";
+    return `<span class="badge${achAt?" on":""}">${achAt?"★ ":""}${esc(b.label)}${achAt?` ・ ${esc(dateStr)}`:""}</span>`;
+  }).join("");
+}
+function drawYearReview(){
+  const map={};
+  activeItems().forEach(it=>{
+    const y=(it.date&&it.date.slice(0,4))||(it.added?String(new Date(it.added).getFullYear()):null);
+    if(!y) return;
+    map[y]=(map[y]||0)+1;
+  });
+  const years=Object.keys(map).sort((a,b)=>b-a);
+  const el=document.getElementById("yearReview");
+  if(!years.length){ el.innerHTML='<div class="empty">まだ記録がありません。</div>'; return; }
+  const thisYear=String(new Date().getFullYear());
+  el.innerHTML=years.map(y=>`<div class="yearRow"><span>${esc(y)}年${y===thisYear?"（今年）":""}</span><b>${map[y]}枚</b></div>`).join("");
+}
+/* 購入場所（位置指定・簡易マップ）機能: 一時的にコメントアウト
+function projectLatLng(lat,lng){
+  const latMin=24,latMax=46,lngMin=122,lngMax=146;
+  const x=(lng-lngMin)/(lngMax-lngMin)*100;
+  const y=(1-(lat-latMin)/(latMax-latMin))*100;
+  return {x:Math.min(100,Math.max(0,x)),y:Math.min(100,Math.max(0,y))};
+}
+const REF_CITIES=[["札幌",43.06,141.35],["東京",35.68,139.76],["大阪",34.69,135.50],["那覇",26.21,127.68]];
+function renderLocPicker(){
+  const wrap=document.getElementById("locPick");
+  wrap.innerHTML="";
+  REF_CITIES.forEach(([name,lat,lng])=>{
+    const {x,y}=projectLatLng(lat,lng);
+    const s=document.createElement("span");
+    s.className="refLabel";
+    s.style.left=x+"%"; s.style.top=y+"%";
+    s.textContent=name;
+    wrap.appendChild(s);
+  });
+  if(pendingLoc) placeMarker(pendingLoc.lat,pendingLoc.lng);
+}
+function placeMarker(lat,lng){
+  let m=document.getElementById("locMarker");
+  if(!m){
+    m=document.createElement("div"); m.id="locMarker"; m.className="pin";
+    document.getElementById("locPick").appendChild(m);
+  }
+  const {x,y}=projectLatLng(lat,lng);
+  m.style.left=x+"%"; m.style.top=y+"%";
+}
+function drawPinMap(){
+  const withLoc=activeItems().filter(i=>i.lat!=null&&i.lng!=null);
+  document.getElementById("pinMapEmpty").classList.toggle("hide",withLoc.length>0);
+  const el=document.getElementById("pinMap");
+  el.innerHTML="";
+  withLoc.forEach(it=>{
+    const {x,y}=projectLatLng(it.lat,it.lng);
+    const b=document.createElement("button");
+    b.className="pin";
+    b.style.left=x+"%"; b.style.top=y+"%";
+    b.title=`${it.pref} ${it.shop||""}`;
+    b.setAttribute("aria-label",b.title);
+    b.onclick=()=>openSheet(it.pref,it.id);
+    el.appendChild(b);
+  });
+}
+*/
+function drawTrash(){
+  const trashed=items.filter(i=>i.deleted).sort((a,b)=>(b.deletedAt||0)-(a.deletedAt||0));
+  document.getElementById("trashCount").textContent=trashed.length?`${trashed.length}件`:"";
+  document.getElementById("trashEmpty").classList.toggle("hide",trashed.length>0);
+  const el=document.getElementById("trash");
+  el.innerHTML="";
+  trashed.forEach(it=>{
+    const row=document.createElement("div");
+    row.className="trashItem";
+    row.innerHTML=`<span>${esc(it.pref)}${it.shop?" ・ "+esc(it.shop):""}</span>`;
+    const act=document.createElement("span"); act.className="act";
+    const rb=document.createElement("button"); rb.className="tiny"; rb.textContent="復元"; rb.onclick=()=>restoreItem(it.id);
+    const pb=document.createElement("button"); pb.className="tiny"; pb.textContent="完全削除"; pb.onclick=()=>purgeItem(it.id);
+    act.appendChild(rb); act.appendChild(pb);
+    row.appendChild(act);
+    el.appendChild(row);
+  });
+}
+function drawMore(){ drawBadges(); drawYearReview(); /* drawPinMap(); */ drawTrash(); }
+
+/* ---------- タブ・その他 ---------- */
+function tab(which){
+  document.getElementById("tabMap").setAttribute("aria-selected",which==="map");
+  document.getElementById("tabList").setAttribute("aria-selected",which==="list");
+  document.getElementById("tabMore").setAttribute("aria-selected",which==="more");
+  document.getElementById("viewMap").classList.toggle("hide",which!=="map");
+  document.getElementById("viewList").classList.toggle("hide",which!=="list");
+  document.getElementById("viewMore").classList.toggle("hide",which!=="more");
+  if(which==="list") drawList();
+  if(which==="more") drawMore();
+}
+document.getElementById("tabMap").onclick=()=>tab("map");
+document.getElementById("tabList").onclick=()=>tab("list");
+document.getElementById("tabMore").onclick=()=>tab("more");
+document.getElementById("q").oninput=drawList;
+document.getElementById("sort").onchange=drawList;
+let tTimer;
+function toast(msg){
+  clearTimeout(tTimer);
+  let t=document.querySelector(".toast");
+  if(!t){ t=document.createElement("div"); t.className="toast"; document.body.appendChild(t); }
+  t.textContent=msg;
+  tTimer=setTimeout(()=>t.remove(),2600);
+}
+(async()=>{ await loadAll(); drawMap(); drawList(); })();
+</script>
+</body>
+</html>
