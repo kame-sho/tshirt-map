@@ -1,6 +1,6 @@
 {
-  "name": "47枚 — 都道府県Tシャツ帳",
-  "short_name": "47枚",
+  "name": "都道府県TシャツMAP",
+  "short_name": "T-Map",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
