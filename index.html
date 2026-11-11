@@ -274,12 +274,34 @@ async function initStorage(){
   if(!idb) return;
   try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
   // 以前 localStorage に保存していたデータがあれば IndexedDB に移す
-  if(hasLocalStorage()){
-    const keys=[];
-    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith("tshirts:")||k.startsWith("photo:")) keys.push(k); }
-    for(const k of keys){
-      if(await idbDo("readonly",s=>s.get(k))===null) await idbDo("readwrite",s=>s.put(localStorage.getItem(k),k));
-    }
+  if(hasLocalStorage()) await migrateFromLocalStorage();
+}
+/* 移し終えた localStorage のデータは消す。
+   残したままだと「完全削除」した写真が localStorage に残り、次回起動時に IndexedDB へ書き戻されてしまうため。
+   GitHub Pages では同じアカウントの別アプリ（御朱印MAP など）と localStorage を共有するので、
+   この一覧から参照されていない "photo:" キーには触れない（他アプリのデータの可能性がある）。 */
+async function migrateFromLocalStorage(){
+  const keys=[];
+  for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith("tshirts:")||k.startsWith("photo:")) keys.push(k); }
+  if(!keys.length) return;
+  const idbHas=async k=>(await idbDo("readonly",s=>s.get(k)))!==null;
+  const isPhotoKey=k=>k.startsWith("photo:");
+  // 1) 一覧・実績を先に移す
+  for(const k of keys.filter(k=>!isPhotoKey(k))){
+    if(!await idbHas(k)) await idbDo("readwrite",s=>s.put(localStorage.getItem(k),k));
+  }
+  // 2) IndexedDB 側の一覧から、この一覧が使っている写真の id を集める。一覧が読めないときは何もしない
+  let ids=null;
+  try{ const raw=await idbDo("readonly",s=>s.get(IDX_KEY)); if(raw) ids=new Set((JSON.parse(raw).items||[]).map(i=>i.id)); }catch(e){ ids=null; }
+  if(!ids) return;
+  // 3) 一覧にある写真だけ移す。一覧にない写真（完全削除済み・他アプリのもの）は移さない
+  const own=keys.filter(k=>!isPhotoKey(k)||ids.has(k.slice(6)));
+  for(const k of own.filter(isPhotoKey)){
+    if(!await idbHas(k)) await idbDo("readwrite",s=>s.put(localStorage.getItem(k),k));
+  }
+  // 4) IndexedDB に入ったことを確認できたものだけ localStorage から消す
+  for(const k of own){
+    if(await idbHas(k)){ try{ localStorage.removeItem(k); }catch(e){} }
   }
 }
 async function sGet(k){
@@ -294,7 +316,7 @@ async function sSet(k,v){
 }
 async function sDel(k){
   if(window.storage){ try{await window.storage.delete(k,false);}catch(e){} return; }
-  if(idb){ await idbDo("readwrite",s=>s.delete(k)); return; }
+  if(idb){ await idbDo("readwrite",s=>s.delete(k)); try{ localStorage.removeItem(k); }catch(e){} return; }   // 移行前の古いコピーが残っていればそれも消す
   try{ localStorage.removeItem(k); }catch(e){}
 }
 
@@ -328,8 +350,10 @@ async function purgeOldTrash(){
 async function getPhoto(id){
   if(photoCache[id]!==undefined) return photoCache[id];
   const v=await sGet("photo:"+id);
-  photoCache[id]=v; return v;
+  photoCache[id]=isSafePhoto(v)?v:null; return photoCache[id];
 }
+// 写真として扱うのは画像のデータURLだけ（外部URLを読み込ませて通信が発生するのを防ぐ）
+function isSafePhoto(v){ return typeof v==="string"&&/^data:image\/[\w.+-]+;base64,/i.test(v); }
 
 /* ---------- 画像圧縮 ---------- */
 function shrink(file){
@@ -400,7 +424,7 @@ function drawList(){
     card.innerHTML=`<div class="ph none">写真なし</div>
       <div class="meta"><div class="pn">${esc(it.pref)}</div>
       <div class="sm">${esc(it.shop||"購入場所は未記入")}</div>
-      <div class="sm">${esc(it.date||"")}${it.price!=null?" ・ ¥"+it.price.toLocaleString():""}</div>
+      <div class="sm">${esc(it.date||"")}${it.price!=null?" ・ ¥"+esc(Number(it.price).toLocaleString()):""}</div>
       ${it.tags?`<div class="tags">${renderTags(it.tags)}</div>`:""}</div>`;
     card.onclick=()=>openSheet(it.pref,it.id);
     el.appendChild(card);
@@ -436,7 +460,7 @@ function openSheet(pref,id){
     <label for="f_date">購入日</label>
     <input class="fld" id="f_date" type="date" value="${esc(it?it.date:"")}">
     <label for="f_price">価格（円）</label>
-    <input class="fld" id="f_price" type="number" inputmode="numeric" min="0" placeholder="例：2500" value="${it&&it.price!=null?it.price:""}">
+    <input class="fld" id="f_price" type="number" inputmode="numeric" min="0" placeholder="例：2500" value="${it&&it.price!=null?esc(String(it.price)):""}">
     <label for="f_tags">タグ（カンマ区切り）</label>
     <input class="fld" id="f_tags" placeholder="例：L, 赤" value="${esc(it?it.tags||"":"")}">
     <label for="f_memo">メモ</label>
@@ -573,21 +597,53 @@ async function exportData(){
   URL.revokeObjectURL(url);
   toast("書き出しました");
 }
+/* 読み込むファイルは他人から受け取ることもあるため、項目ごとに型と形式を確かめてから取り込む。
+   想定外の値（HTML を含む金額など）をそのまま保存すると、表示時にスクリプトが実行されるおそれがある。 */
+const PREF_NAMES=new Set(PREFS.map(p=>p[0]));
+function normPref(p){
+  if(typeof p!=="string") return null;
+  if(PREF_NAMES.has(p)) return p;
+  const s=p.replace(/[都府県]$/,"");   // 「東京都」「大阪府」なども受け付ける
+  return PREF_NAMES.has(s)?s:null;
+}
+function txt(v){ return typeof v==="string"?v:(typeof v==="number"&&isFinite(v)?String(v):""); }
+function num(v){ return typeof v==="number"&&isFinite(v)?v:null; }
+function sanitizeItem(raw){
+  if(!raw||typeof raw!=="object") return null;
+  const pref=normPref(raw.pref);
+  if(!pref) return null;
+  const date=txt(raw.date);
+  const it={
+    pref,
+    shop:txt(raw.shop),
+    date:/^\d{4}-\d{2}-\d{2}$/.test(date)?date:"",
+    memo:txt(raw.memo),
+    tags:txt(raw.tags),
+    price:num(raw.price),
+    added:num(raw.added)||Date.now(),
+    hasPhoto:false
+  };
+  const lat=num(raw.lat), lng=num(raw.lng);
+  if(lat!=null&&lng!=null){ it.lat=lat; it.lng=lng; }
+  return it;
+}
 async function importData(file){
   let data;
   try{ data=JSON.parse(await file.text()); }
   catch(e){ toast("このファイルは読み込めませんでした。"); return; }
   if(!data||!Array.isArray(data.items)){ toast("このファイルは読み込めませんでした。"); return; }
-  if(!confirm(`${data.items.length}件のTシャツを読み込みます。今のデータに追加されます。よろしいですか？`)) return;
-  const photos=data.photos||{};
-  for(const it of data.items){
-    const oldId=it.id;
-    const newId=String(Date.now())+Math.random().toString(36).slice(2,6);
-    const copy=Object.assign({},it,{id:newId});
-    items.push(copy);
-    if(copy.hasPhoto&&photos[oldId]){
-      if(memOnly||await sSet("photo:"+newId,photos[oldId])) photoCache[newId]=photos[oldId];
-      else copy.hasPhoto=false;
+  const rows=[];
+  for(const raw of data.items){ const it=sanitizeItem(raw); if(it) rows.push([raw,it]); }
+  if(!rows.length){ toast("読み込めるTシャツがありませんでした。"); return; }
+  const skipped=data.items.length-rows.length;
+  if(!confirm(`${rows.length}件のTシャツを読み込みます。${skipped?`（形式が正しくない${skipped}件は読み込みません）`:""}今のデータに追加されます。よろしいですか？`)) return;
+  const photos=(data.photos&&typeof data.photos==="object")?data.photos:{};
+  for(const [raw,it] of rows){
+    it.id=String(Date.now())+Math.random().toString(36).slice(2,6);
+    items.push(it);
+    const src=(typeof raw.id==="string"||typeof raw.id==="number")?photos[raw.id]:null;
+    if(raw.hasPhoto&&isSafePhoto(src)){
+      if(memOnly||await sSet("photo:"+it.id,src)){ photoCache[it.id]=src; it.hasPhoto=true; }
     }
   }
   await saveIndex();
